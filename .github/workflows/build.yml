@@ -1,0 +1,57 @@
+name: Flutter Build APK
+
+on:
+  repository_dispatch:
+    types: [build_apk]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # UPDATE KE v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # UPDATE KE v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'any'
+          channel: 'stable'
+
+      - name: Download & Extract User ZIP
+        run: |
+          curl -L "${{ github.event.client_payload.zip_url }}" -o project.zip
+          unzip project.zip -d app_source
+          
+      - name: Build APK (Auto-Detect Directory)
+        run: |
+          # Cari lokasi asli pubspec.yaml untuk mengatasi salah struktur ZIP
+          TARGET_DIR=$(dirname $(find ./app_source -name "pubspec.yaml" | head -n 1))
+          if [ -z "$TARGET_DIR" ]; then
+            echo "ERROR: pubspec.yaml tidak ditemukan di dalam file ZIP!"
+            exit 1
+          fi
+          echo "Project Flutter ditemukan di: $TARGET_DIR"
+          cd $TARGET_DIR
+          
+          # Mulai proses kompilasi
+          flutter pub get
+          flutter build apk --release
+          
+          # Pindahkan hasil APK ke folder utama agar mudah diunggah
+          cp build/app/outputs/flutter-apk/app-release.apk $GITHUB_WORKSPACE/final-app.apk
+          
+      # UPDATE KE v4 (Ini biang kerok utamanya!)
+      - name: Upload APK ke Bot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.client_payload.build_id }}
+          path: final-app.apk
